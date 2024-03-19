@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	db "github.com/hpetrov29/restapi/business/data/dbsql/mysql"
 	v1 "github.com/hpetrov29/restapi/business/web/v1"
 	"github.com/hpetrov29/restapi/internal/logger"
 	"github.com/hpetrov29/restapi/internal/web"
@@ -59,6 +60,15 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 			ShutdownTimeout time.Duration `conf:"default:20s"`
 			// DebugHost       string        `conf:"default:0.0.0.0:4000"`
 		}
+		DB struct {
+			User         string `conf:"default:root"`
+			Password     string `conf:"default:"`
+			Host         string `conf:"default:localhost:3306"`
+			Name         string `conf:"default:golang_api"`
+			MaxIdleConns int    `conf:"default:2"`
+			MaxOpenConns int    `conf:"default:0"`
+			DisableTLS   bool   `conf:"default:true"`
+		}
 	}{}
 
 	config.Version.Build = build
@@ -69,6 +79,40 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 	config.Web.WriteTimeout = time.Duration(10)*time.Second
 	config.Web.IdleTimeout = time.Duration(120)*time.Second
 	config.Web.ShutdownTimeout = time.Duration(20)*time.Second
+
+	config.DB.User = os.Getenv("DB_USER")
+	config.DB.Password = os.Getenv("DB_PASSWORD")
+	config.DB.Host = os.Getenv("DB_HOST")
+	config.DB.Name = os.Getenv("DB_NAME")
+	config.DB.MaxIdleConns = 2
+	config.DB.MaxOpenConns = 0
+	config.DB.DisableTLS = true
+
+	// -------------------------------------------------------------------------
+	// Set up database client conneciton
+
+	log.Info(ctx, "DB startup", "status", "initializing database support", "host", config.DB.Host)
+
+	dbClient, err := db.Open(db.Config{
+		User:         config.DB.User,
+		Password:     config.DB.Password,
+		Host:         config.DB.Host,
+		Name:         config.DB.Name,
+		MaxIdleConns: config.DB.MaxIdleConns,
+		MaxOpenConns: config.DB.MaxOpenConns,
+		DisableTLS:   config.DB.DisableTLS,
+	})
+	if err != nil {
+		fmt.Println("error connecting to db: ", err)
+	}
+	defer func() {
+		log.Info(ctx, "DB shutdown", "status", "stopping database support", "host", config.DB.Host)
+		dbClient.Close()
+	}()
+
+	err = db.StatusCheck(ctx, dbClient); if err != nil {
+		fmt.Println("error database status check: ", err)
+	}
 
 	// -------------------------------------------------------------------------
 	// Start API
@@ -83,7 +127,7 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 		Build: build,
 		Shutdown: shutdown,
 		Log: log,
-		DB: nil, //TO DO: Add db connection
+		DB: dbClient,
 	}
 
 	apiMux := v1.NewAPIMux(muxConfig)
@@ -106,8 +150,8 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 		case err := <-serverErrors:
 			return fmt.Errorf("server error: %w", err)
 		case sig := <-shutdown:
-			log.Info(ctx, "shutdown", "status", "shutdown started", "signal", sig)
-			defer log.Info(ctx, "shutdown", "status", "shutdown complete", "signal", sig)
+			log.Info(ctx, "API shutdown", "status", "shutdown started", "signal", sig)
+			defer log.Info(ctx, "API shutdown", "status", "shutdown complete", "signal", sig)
 	
 			ctx, cancel := context.WithTimeout(ctx, config.Web.ShutdownTimeout)
 			defer cancel()
