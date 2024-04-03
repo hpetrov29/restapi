@@ -7,5 +7,5 @@ import (
 
 func main() {
 	godotenv.Load()
-	cmd.Main()
+	cmd.Main(cmd.Routes())
 }

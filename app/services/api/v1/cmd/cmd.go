@@ -18,7 +18,7 @@ import (
 	"github.com/hpetrov29/restapi/internal/web"
 )
 
-func Main() {
+func Main(routeAdder v1.RouteAdder) {
 	var log *logger.Logger
 
 	events := logger.Events{
@@ -36,10 +36,10 @@ func Main() {
 
 	ctx := context.Background()
 
-	run(ctx, log, "v1")
+	run(ctx, log, "v1", routeAdder)
 }
 
-func run(ctx context.Context, log *logger.Logger, build string) error {
+func run(ctx context.Context, log *logger.Logger, build string, routeAdder v1.RouteAdder) error {
 
 	// -------------------------------------------------------------------------
 	// GOMAXPROCS
@@ -160,7 +160,7 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 		DB: dbClient,
 	}
 
-	apiMux := v1.NewAPIMux(muxConfig)
+	apiMux := v1.NewAPIMux(muxConfig, routeAdder)
 
 	api := &http.Server{
         Addr:    config.Web.APIHost,

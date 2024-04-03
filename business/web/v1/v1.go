@@ -19,7 +19,16 @@ type APIMuxConfig struct {
 	DB       *sqlx.DB
 }
 
-func NewAPIMux(config APIMuxConfig) http.Handler {
+// RouteAdder defines behavior that sets the routes to bind for an instance
+// of the service.
+type RouteAdder interface {
+	Add(app *web.App, cfg APIMuxConfig)
+}
+
+func NewAPIMux(config APIMuxConfig, routeAdder RouteAdder) http.Handler {
 	app := web.NewApp(config.Shutdown, nil)
+
+	routeAdder.Add(app, config)
+
 	return app
 }
