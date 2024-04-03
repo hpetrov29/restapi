@@ -12,6 +12,8 @@ import (
 
 	db "github.com/hpetrov29/restapi/business/data/dbsql/mysql"
 	v1 "github.com/hpetrov29/restapi/business/web/v1"
+	"github.com/hpetrov29/restapi/business/web/v1/auth"
+	"github.com/hpetrov29/restapi/internal/keystore"
 	"github.com/hpetrov29/restapi/internal/logger"
 	"github.com/hpetrov29/restapi/internal/web"
 )
@@ -69,6 +71,10 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 			MaxOpenConns int    `conf:"default:0"`
 			DisableTLS   bool   `conf:"default:true"`
 		}
+		Auth struct {
+			KeysFolder string
+			Issuer string
+		}
 	}{}
 
 	config.Version.Build = build
@@ -87,6 +93,9 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 	config.DB.MaxIdleConns = 2
 	config.DB.MaxOpenConns = 0
 	config.DB.DisableTLS = true
+
+	config.Auth.KeysFolder = "zarf/keys"
+	config.Auth.Issuer = "service"
 
 	// -------------------------------------------------------------------------
 	// Set up database client conneciton
@@ -115,6 +124,26 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 	}
 
 	// -------------------------------------------------------------------------
+	// Initialize authentication support
+
+	log.Info(ctx, "Auth startup", "status", "initializing authentication support")
+
+	keystore, err := keystore.NewFS(os.DirFS(config.Auth.KeysFolder))
+	if err != nil {
+		return fmt.Errorf("reading keys: %w", err)
+	}
+
+	auth, err := auth.New(auth.Config{
+		Log:       log,
+		DB:        dbClient,
+		Issuer:    config.Auth.Issuer,
+		Vault: 	   keystore,
+	})
+	if err != nil {
+		return fmt.Errorf("constructing auth: %w", err)
+	}
+
+	// -------------------------------------------------------------------------
 	// Start API
 
 	log.Info(ctx, "API startup", "version", build)
@@ -127,6 +156,7 @@ func run(ctx context.Context, log *logger.Logger, build string) error {
 		Build: build,
 		Shutdown: shutdown,
 		Log: log,
+		Auth: auth,
 		DB: dbClient,
 	}
 
