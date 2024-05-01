@@ -24,3 +24,13 @@ func GetTraceID(ctx context.Context) string {
 	}
 	return v.TraceId
 }
+
+// SetStatusCode sets the status code back into the context.
+func SetStatusCode(ctx context.Context, statusCode int) {
+	v, ok := ctx.Value(key).(*Values)
+	if !ok {
+		return
+	}
+
+	v.StatusCode = statusCode
+}

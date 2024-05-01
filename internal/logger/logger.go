@@ -30,6 +30,11 @@ func (log *Logger) Info(ctx context.Context, message string, args ...any) {
 	log.write(ctx, LevelInfo, 3, message, args...)
 }
 
+// Infoc logs the information at the specified call stack position.
+func (log *Logger) Infoc(ctx context.Context, caller int, msg string, args ...any) {
+	log.write(ctx, LevelInfo, caller, msg, args...)
+}
+
 func (log *Logger) write(ctx context.Context, level Level, caller int, message string, args ...any) {
 	slogLevel := slog.Level(level)
 

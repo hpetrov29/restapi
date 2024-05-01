@@ -3,6 +3,8 @@ package users
 import (
 	"net/http"
 
+	"github.com/hpetrov29/restapi/business/core/user"
+	"github.com/hpetrov29/restapi/business/core/user/stores/usersqldb"
 	"github.com/hpetrov29/restapi/business/web/v1/auth"
 	"github.com/hpetrov29/restapi/business/web/v1/middleware"
 	"github.com/hpetrov29/restapi/internal/logger"
@@ -19,16 +21,18 @@ type Config struct {
 
 // Routes adds specific routes for this group.
 func Routes(app *web.App, cfg Config) {
-
 	const version = "v1"
 
-	handlers := New(cfg.Auth)
+	userCore := user.NewCore(usersqldb.NewStore(cfg.Log, cfg.DB), cfg.Log)
+
+	handlers := New(userCore, cfg.Auth)
 
 	authenticated := middleware.Authenticate(cfg.Auth)
 	_ = middleware.Authorize(cfg.Auth, auth.RuleAdminOnly)
 	_ = middleware.Authorize(cfg.Auth, auth.RuleAdminOrSubject)
 
 	// arguments: METHOD, version, path, controller, ...middlewares
+	app.Handle(http.MethodPost, version, "/users", handlers.Create)
 	app.Handle(http.MethodGet, version, "/users/token/{kid}", handlers.Token)
 	app.Handle(http.MethodGet, version, "/users", handlers.Query, authenticated)
 }
